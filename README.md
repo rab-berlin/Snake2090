@@ -2,8 +2,8 @@
 
 Snake für den Busch Microtronic 2090 mit 8x8-LED-Matrix und 4 Tastern.
 
-- 252 Programmschritte, 4 frei
-- Datei: [snake.mic](snake.mic) (Version 02)
+- 253 Programmschritte, 3 frei
+- Datei: [snake.mic](snake.mic) (Version 03)
 
 ## Spiel
 
@@ -28,7 +28,7 @@ Snake für den Busch Microtronic 2090 mit 8x8-LED-Matrix und 4 Tastern.
 
 ## Start
 
-RESET (alle Register und Speicher 0, das Bild liegt in M0-MF), Matrix einschalten, `HALT` `NEXT` `00` `RUN`.
+RESET (alle Register und Speicher 0, das Bild liegt in M0-MF), Matrix einschalten (siehe unten), `HALT` `NEXT` `00` `RUN`.
 
 ## Technik
 
@@ -36,9 +36,12 @@ Aus dem Bild allein lässt sich der Weg des Schwanzes nicht bestimmen. Deshalb s
 
 ## Matrixprotokoll
 
-Das Programm verwendet das **frühere Blockprotokoll** der Matrix:
-- Bereit-Signal auf Eingang 1
-- Startnibble 1, 16 Werte, Endnibble 0
-- ein F von 15-25 ms schaltet die Matrix um
+Das Programm arbeitet mit dem [ESP2090 Studio](https://github.com/rab-berlin/ESP2090) (Blockmodus mit Schlafmodus):
 
-Im [Emulator2090](https://github.com/rab-berlin/Emulator2090) die Matrix mit `m` auf `alt` stellen. Für das aktuelle Protokoll des [ESP2090 Studios](https://github.com/rab-berlin/ESP2090) muss das Programm noch umgestellt werden.
+- **Schlafen:** Zwischen den Bildern schläft die Matrix (ACK 15). Der ESP setzt dann kein REQ und ignoriert die Ausgänge, so ist Eingang 1 frei für Taster links.
+- **Wecken und Bild:** Für ein Bild weckt das Programm die Matrix mit F und dann 0 auf den Ausgängen. Danach folgen sofort ACK 1, genau ein Befehl und die 16 Register.
+- **Wieder schlafen:** Danach setzt das Programm die Ausgänge auf 0 und legt die Matrix wieder schlafen.
+
+Auf der Weboberfläche „LED on“ drücken, im [Emulator2090](https://github.com/rab-berlin/Emulator2090) die Matrix mit `m` einschalten (Modus ESP). Die Matrix muss vor dem Start eingeschaltet sein.
+
+Bis Version 02 lief das Programm mit dem früheren Blockprotokoll (Startnibble 1, Endnibble 0, Umschaltsignal F).
