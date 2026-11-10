@@ -1,8 +1,11 @@
-; snake-04.mic - Snake für Busch Microtronic 2090 mit 8x8-LED-Matrix (ESP2090 Studio) und 4 Tastern
-; 255 Schritte (00-FE), frei: 1
+; snake-05.mic - Snake für Busch Microtronic 2090 mit 8x8-LED-Matrix (ESP2090 Studio) und 4 Tastern
+; 253 Schritte (00-FC), frei: 3
 ; Version 03: Matrix des ESP2090 Studios. Zwischen den Bildern schlaeft sie (ACK 15, kein REQ), damit Eingang 1
 ;   Taster links sein kann; vor dem Bild weckt F, dann folgt ACK 1 mit den 16 Registern.
 ; Version 04: nach dem Wecken auf REQ warten statt ACK 1 blind zu senden (+2 Schritte).
+; Version 05: Wecken als Handshake. Das F bleibt stehen, bis der ESP mit REQ antwortet, dann folgt direkt
+;   ACK 1 (keine 0 dazwischen). So geht kein Wecken verloren, egal wie spaet der ESP nachsieht.
+;   Schlafen steht jetzt direkt hinter dem Bild (kein Unterprogramm), am Start entfaellt es.
 ; Start: Reset, Matrix einschalten (Weboberflaeche: LED on, Emulator2090: m), RUN.
 ;   Matrix vergessen? Das Programm wartet am Anfang ohne Bild: Matrix einschalten.
 ; Taster 1-4 = links, hoch, runter, rechts (Pfeiltasten). Umkehr wird ignoriert,
@@ -41,31 +44,31 @@ F76   ; 02           MAS     LAENGE           ... nach M6 (Matrix liegt in M0-MF
 143   ; 07           MOVI    #4,SCHW_M
 137   ; 08           MOVI    #3,Q0            Richtung 3 = rechts: Vorwahl ...
 138   ; 09           MOVI    #3,Q1            ... und der letzte Zug
-BF7   ; 0A           CALL    Schlaf           Matrix schlafen: Eingang 1 frei fuer Taster links
 
-F05   ; 0B  Futter   RND                      neues Futter: IDX = Register, T = Spalte im Register
-11F   ; 0C           MOVI    #1,MASKE
-33E   ; 0D           ANDI    #3,T
+F05   ; 0A  Futter   RND                      neues Futter: IDX = Register, T = Spalte im Register
+11F   ; 0B           MOVI    #1,MASKE
+33E   ; 0C           ANDI    #3,T
 
-71E   ; 0E  FL       SUBI    #1,T             Maske = 1 << T
-D12   ; 0F           BRC     FD
-4FF   ; 10           ADD     MASKE,MASKE
-C0E   ; 11           GOTO    FL
+71E   ; 0D  FL       SUBI    #1,T             Maske = 1 << T
+D11   ; 0E           BRC     FD
+4FF   ; 0F           ADD     MASKE,MASKE
+C0D   ; 10           GOTO    FL
 
-0D4   ; 12  FD       MOV     IDX,FUTT_I
-0F5   ; 13           MOV     MASKE,FUTT_M
-BB2   ; 14           CALL    Zelle            Futter setzen
-E18   ; 15           BRZ     Frame            Zelle war frei
-BB2   ; 16           CALL    Zelle            war Schlange: zurückschalten, neu würfeln
-C0B   ; 17           GOTO    Futter
+0D4   ; 11  FD       MOV     IDX,FUTT_I
+0F5   ; 12           MOV     MASKE,FUTT_M
+BB8   ; 13           CALL    Zelle            Futter setzen
+E17   ; 14           BRZ     Frame            Zelle war frei
+BB8   ; 15           CALL    Zelle            war Schlange: zurückschalten, neu würfeln
+C0A   ; 16           GOTO    Futter
 
-BFA   ; 18  Frame    CALL    Tog              Matrix wecken (F, dann 0): der ESP setzt sofort REQ
+1FF   ; 17  Frame    MOVI    #F,MASKE         Matrix wecken: F anlegen und halten ...
+FEF   ; 18           DOT     MASKE
 F0D   ; 19           EXRL                     R0-R7 = Matrix Zeile 1-4, Variablen nach M0-M7
 
-FDF   ; 1A  FW       DIN     MASKE            nach dem Wecken auf REQ warten (danach = 1 = ACK)
+FDF   ; 1A  FW       DIN     MASKE            ... bis der ESP mit REQ antwortet (danach = 1 = ACK)
 31F   ; 1B           ANDI    #1,MASKE
 E1A   ; 1C           BRZ     FW
-FEF   ; 1D           DOT     MASKE            ACK 1
+FEF   ; 1D           DOT     MASKE            ACK 1 direkt nach dem F
 F0E   ; 1E           EXRM                     genau ein Befehl zwischen ACK und erstem Wert: R8-RF = Zeile 5-8
 FE0   ; 1F           DOT     r0               Zeile 1 links
 FE1   ; 20           DOT     r1               Zeile 1 rechts
@@ -87,254 +90,251 @@ F0E   ; 2F           EXRM                     Variablen zurück
 10F   ; 30           MOVI    #0,MASKE
 FEF   ; 31           DOT     MASKE            Ausgaenge 0: Uebertragung fertig
 F0D   ; 32           EXRL
-BF7   ; 33           CALL    Schlaf           Matrix schlafen: Eingang 1 ist wieder Taster links
+FDF   ; 33  Schlaf   DIN     MASKE            Matrix schlafen legen: auf REQ warten ...
+31F   ; 34           ANDI    #1,MASKE
+E33   ; 35           BRZ     Schlaf
+1FF   ; 36           MOVI    #F,MASKE         ... ACK 15 (schlafen)
+FEF   ; 37           DOT     MASKE
+10F   ; 38           MOVI    #0,MASKE         nach 2 Schritten wegnehmen (laenger als 40 ms waere Wecken)
+FEF   ; 39           DOT     MASKE            Eingang 1 ist jetzt Taster links
 
-B81   ; 34  Tick     CALL    Taste
-0CE   ; 35           MOV     Q5,T             Richtungsschlange einen Platz weiter: ...
-33E   ; 36           ANDI    #3,T             ... Platz 5 geht nach Platz 6 (Q0 Bit 3-4)
-4EE   ; 37           ADD     T,T
-4EE   ; 38           ADD     T,T
-0BC   ; 39           MOV     Q4,Q5
-0AB   ; 3A           MOV     Q3,Q4
-09A   ; 3B           MOV     Q2,Q3
-089   ; 3C           MOV     Q1,Q2
-078   ; 3D           MOV     Q0,Q1            Vorwahl wird Platz 1 = dieser Zug
-337   ; 3E           ANDI    #3,Q0            Platz 0 behält die Richtung (geradeaus)
-4E7   ; 3F           ADD     T,Q0
-07E   ; 40           MOV     Q0,RICHT         Richtung dieses Zugs
-33E   ; 41           ANDI    #3,RICHT
-00D   ; 42           MOV     KOPF_I,IDX
-01F   ; 43           MOV     KOPF_M,MASKE
-B95   ; 44           CALL    Schritt          außerhalb: Spielende
-0D0   ; 45           MOV     IDX,KOPF_I
-0F1   ; 46           MOV     MASKE,KOPF_M
-84D   ; 47           CMP     FUTT_I,IDX       Futter?
-E7A   ; 48           BRZ     FutY
+B87   ; 3A  Tick     CALL    Taste
+0CE   ; 3B           MOV     Q5,T             Richtungsschlange einen Platz weiter: ...
+33E   ; 3C           ANDI    #3,T             ... Platz 5 geht nach Platz 6 (Q0 Bit 3-4)
+4EE   ; 3D           ADD     T,T
+4EE   ; 3E           ADD     T,T
+0BC   ; 3F           MOV     Q4,Q5
+0AB   ; 40           MOV     Q3,Q4
+09A   ; 41           MOV     Q2,Q3
+089   ; 42           MOV     Q1,Q2
+078   ; 43           MOV     Q0,Q1            Vorwahl wird Platz 1 = dieser Zug
+337   ; 44           ANDI    #3,Q0            Platz 0 behält die Richtung (geradeaus)
+4E7   ; 45           ADD     T,Q0
+07E   ; 46           MOV     Q0,RICHT         Richtung dieses Zugs
+33E   ; 47           ANDI    #3,RICHT
+00D   ; 48           MOV     KOPF_I,IDX
+01F   ; 49           MOV     KOPF_M,MASKE
+B9B   ; 4A           CALL    Schritt          außerhalb: Spielende
+0D0   ; 4B           MOV     IDX,KOPF_I
+0F1   ; 4C           MOV     MASKE,KOPF_M
+84D   ; 4D           CMP     FUTT_I,IDX       Futter?
+E80   ; 4E           BRZ     FutY
 
-02D   ; 49  NoEat    MOV     SCHW_I,IDX       Schwanz löschen
-03F   ; 4A           MOV     SCHW_M,MASKE
-BB2   ; 4B           CALL    Zelle
-06D   ; 4C           MOV     LAENGE,IDX       Richtung am Schwanz = Platz LAENGE
-95D   ; 4D           CMPI    #5,IDX
-D75   ; 4E           BRC     Lm               Platz 6-11: Q(Platz - 6), Bit 3-4
+02D   ; 4F  NoEat    MOV     SCHW_I,IDX       Schwanz löschen
+03F   ; 50           MOV     SCHW_M,MASKE
+BB8   ; 51           CALL    Zelle
+06D   ; 52           MOV     LAENGE,IDX       Richtung am Schwanz = Platz LAENGE
+95D   ; 53           CMPI    #5,IDX
+D7B   ; 54           BRC     Lm               Platz 6-11: Q(Platz - 6), Bit 3-4
 
-92D   ; 4F  Ld       CMPI    #2,IDX           Halbierung über Q0-Q5
-D5A   ; 50           BRC     Lh
-E58   ; 51           BRZ     L2
-90D   ; 52           CMPI    #0,IDX
-E56   ; 53           BRZ     L0
+92D   ; 55  Ld       CMPI    #2,IDX           Halbierung über Q0-Q5
+D60   ; 56           BRC     Lh
+E5E   ; 57           BRZ     L2
+90D   ; 58           CMPI    #0,IDX
+E5C   ; 59           BRZ     L0
 
-08E   ; 54  L1       MOV     Q1,T
-C62   ; 55           GOTO    Lj
+08E   ; 5A  L1       MOV     Q1,T
+C68   ; 5B           GOTO    Lj
 
-07E   ; 56  L0       MOV     Q0,T
-C62   ; 57           GOTO    Lj
+07E   ; 5C  L0       MOV     Q0,T
+C68   ; 5D           GOTO    Lj
 
-09E   ; 58  L2       MOV     Q2,T
-C62   ; 59           GOTO    Lj
+09E   ; 5E  L2       MOV     Q2,T
+C68   ; 5F           GOTO    Lj
 
-94D   ; 5A  Lh       CMPI    #4,IDX
-D61   ; 5B           BRC     L5
-E5F   ; 5C           BRZ     L4
+94D   ; 60  Lh       CMPI    #4,IDX
+D67   ; 61           BRC     L5
+E65   ; 62           BRZ     L4
 
-0AE   ; 5D  L3       MOV     Q3,T
-C62   ; 5E           GOTO    Lj
+0AE   ; 63  L3       MOV     Q3,T
+C68   ; 64           GOTO    Lj
 
-0BE   ; 5F  L4       MOV     Q4,T
-C62   ; 60           GOTO    Lj
+0BE   ; 65  L4       MOV     Q4,T
+C68   ; 66           GOTO    Lj
 
-0CE   ; 61  L5       MOV     Q5,T
+0CE   ; 67  L5       MOV     Q5,T
 
-956   ; 62  Lj       CMPI    #5,LAENGE
-D77   ; 63           BRC     LS               obere Hälfte: zwei Bits nach rechts
+956   ; 68  Lj       CMPI    #5,LAENGE
+D7D   ; 69           BRC     LS               obere Hälfte: zwei Bits nach rechts
 
-33E   ; 64  LA       ANDI    #3,T
-02D   ; 65           MOV     SCHW_I,IDX       Schwanz einen Schritt weiter
-03F   ; 66           MOV     SCHW_M,MASKE
-B95   ; 67           CALL    Schritt
-0D2   ; 68           MOV     IDX,SCHW_I
-0F3   ; 69           MOV     MASKE,SCHW_M
-B81   ; 6A           CALL    Taste
-00D   ; 6B           MOV     KOPF_I,IDX       Kopf setzen
-01F   ; 6C           MOV     KOPF_M,MASKE
-BB2   ; 6D           CALL    Zelle
-E18   ; 6E           BRZ     Frame            Zelle war frei
+33E   ; 6A  LA       ANDI    #3,T
+02D   ; 6B           MOV     SCHW_I,IDX       Schwanz einen Schritt weiter
+03F   ; 6C           MOV     SCHW_M,MASKE
+B9B   ; 6D           CALL    Schritt
+0D2   ; 6E           MOV     IDX,SCHW_I
+0F3   ; 6F           MOV     MASKE,SCHW_M
+B87   ; 70           CALL    Taste
+00D   ; 71           MOV     KOPF_I,IDX       Kopf setzen
+01F   ; 72           MOV     KOPF_M,MASKE
+BB8   ; 73           CALL    Zelle
+E17   ; 74           BRZ     Frame            Zelle war frei
 
-06D   ; 6F  Ende     MOV     LAENGE,IDX       Spielende: Länge dezimal anzeigen (12 = gewonnen)
-10E   ; 70           MOVI    #0,T
-10F   ; 71           MOVI    #0,MASKE
-F03   ; 72           HXDZ
-F2D   ; 73           DISP    #2,IDX
+06D   ; 75  Ende     MOV     LAENGE,IDX       Spielende: Länge dezimal anzeigen (12 = gewonnen)
+10E   ; 76           MOVI    #0,T
+10F   ; 77           MOVI    #0,MASKE
+F03   ; 78           HXDZ
+F2D   ; 79           DISP    #2,IDX
 
-C74   ; 74  Halt     GOTO    Halt             bleibt stehen
+C7A   ; 7A  Halt     GOTO    Halt             bleibt stehen
 
-76D   ; 75  Lm       SUBI    #6,IDX
-C4F   ; 76           GOTO    Ld
+76D   ; 7B  Lm       SUBI    #6,IDX
+C55   ; 7C           GOTO    Ld
 
-F9E   ; 77  LS       SHR     T
-F9E   ; 78           SHR     T
-C64   ; 79           GOTO    LA
+F9E   ; 7D  LS       SHR     T
+F9E   ; 7E           SHR     T
+C6A   ; 7F           GOTO    LA
 
-85F   ; 7A  FutY     CMP     FUTT_M,MASKE
-E7D   ; 7B           BRZ     Eat
-C49   ; 7C           GOTO    NoEat
+85F   ; 80  FutY     CMP     FUTT_M,MASKE
+E83   ; 81           BRZ     Eat
+C4F   ; 82           GOTO    NoEat
 
-516   ; 7D  Eat      ADDI    #1,LAENGE        gefressen: Schwanz bleibt, Schlange wächst
-9B6   ; 7E           CMPI    #B,LAENGE
-D6F   ; 7F           BRC     Ende             Länge 12: gewonnen (Richtungsschlange voll)
-C0B   ; 80           GOTO    Futter
+516   ; 83  Eat      ADDI    #1,LAENGE        gefressen: Schwanz bleibt, Schlange wächst
+9B6   ; 84           CMPI    #B,LAENGE
+D75   ; 85           BRC     Ende             Länge 12: gewonnen (Richtungsschlange voll)
+C0A   ; 86           GOTO    Futter
 
-FDE   ; 81  Taste    DIN     T                Taster: 1 links, 2 hoch, 3 runter, 4 rechts
-E94   ; 82           BRZ     TRet
-10F   ; 83           MOVI    #0,MASKE         Richtung = Nummer des niedrigsten Tasters - 1
-F9E   ; 84           SHR     T                Taster 1: links (0)
-D8D   ; 85           BRC     TC
-51F   ; 86           ADDI    #1,MASKE
-F9E   ; 87           SHR     T                Taster 2: hoch (1)
-D8D   ; 88           BRC     TC
-51F   ; 89           ADDI    #1,MASKE
-F9E   ; 8A           SHR     T                Taster 3: runter (2)
-D8D   ; 8B           BRC     TC
-51F   ; 8C           ADDI    #1,MASKE         sonst Taster 4: rechts (3)
+FDE   ; 87  Taste    DIN     T                Taster: 1 links, 2 hoch, 3 runter, 4 rechts
+E9A   ; 88           BRZ     TRet
+10F   ; 89           MOVI    #0,MASKE         Richtung = Nummer des niedrigsten Tasters - 1
+F9E   ; 8A           SHR     T                Taster 1: links (0)
+D93   ; 8B           BRC     TC
+51F   ; 8C           ADDI    #1,MASKE
+F9E   ; 8D           SHR     T                Taster 2: hoch (1)
+D93   ; 8E           BRC     TC
+51F   ; 8F           ADDI    #1,MASKE
+F9E   ; 90           SHR     T                Taster 3: runter (2)
+D93   ; 91           BRC     TC
+51F   ; 92           ADDI    #1,MASKE         sonst Taster 4: rechts (3)
 
-08E   ; 8D  TC       MOV     Q1,T             letzter Zug (Platz 1)
-33E   ; 8E           ANDI    #3,T
-4FE   ; 8F           ADD     MASKE,T          Summe 3 = Gegenrichtung: ignorieren
-93E   ; 90           CMPI    #3,T
-E94   ; 91           BRZ     TRet
-3C7   ; 92           ANDI    #C,Q0            Vorwahl (Platz 0) setzen
-4F7   ; 93           ADD     MASKE,Q0
+08E   ; 93  TC       MOV     Q1,T             letzter Zug (Platz 1)
+33E   ; 94           ANDI    #3,T
+4FE   ; 95           ADD     MASKE,T          Summe 3 = Gegenrichtung: ignorieren
+93E   ; 96           CMPI    #3,T
+E9A   ; 97           BRZ     TRet
+3C7   ; 98           ANDI    #C,Q0            Vorwahl (Platz 0) setzen
+4F7   ; 99           ADD     MASKE,Q0
 
-F07   ; 94  TRet     RET
+F07   ; 9A  TRet     RET
 
-91E   ; 95  Schritt  CMPI    #1,RICHT         IDX/MASKE ein Feld in RICHT; außerhalb: Ende
-D9E   ; 96           BRC     SHi
-E9B   ; 97           BRZ     SUp
+91E   ; 9B  Schritt  CMPI    #1,RICHT         IDX/MASKE ein Feld in RICHT; außerhalb: Ende
+DA4   ; 9C           BRC     SHi
+EA1   ; 9D           BRZ     SUp
 
-F9F   ; 98  SLe      SHR     MASKE            0 = links
-DA6   ; 99           BRC     SLX
-F07   ; 9A           RET
+F9F   ; 9E  SLe      SHR     MASKE            0 = links
+DAC   ; 9F           BRC     SLX
+F07   ; A0           RET
 
-52D   ; 9B  SUp      ADDI    #2,IDX           1 = hoch
-D6F   ; 9C           BRC     Ende
-F07   ; 9D           RET
+52D   ; A1  SUp      ADDI    #2,IDX           1 = hoch
+D75   ; A2           BRC     Ende
+F07   ; A3           RET
 
-92E   ; 9E  SHi      CMPI    #2,RICHT
-EA3   ; 9F           BRZ     SDn
+92E   ; A4  SHi      CMPI    #2,RICHT
+EA9   ; A5           BRZ     SDn
 
-FAF   ; A0  SRi      SHL     MASKE            3 = rechts
-DAC   ; A1           BRC     SRX
-F07   ; A2           RET
+FAF   ; A6  SRi      SHL     MASKE            3 = rechts
+DB2   ; A7           BRC     SRX
+F07   ; A8           RET
 
-72D   ; A3  SDn      SUBI    #2,IDX           2 = runter
-D6F   ; A4           BRC     Ende
-F07   ; A5           RET
-
-71D   ; A6  SLX      SUBI    #1,IDX           links über die Registergrenze
-0DE   ; A7           MOV     IDX,T
-F9E   ; A8           SHR     T
-D6F   ; A9           BRC     Ende             war linke Hälfte: Rand
-18F   ; AA           MOVI    #8,MASKE
+72D   ; A9  SDn      SUBI    #2,IDX           2 = runter
+D75   ; AA           BRC     Ende
 F07   ; AB           RET
 
-0DE   ; AC  SRX      MOV     IDX,T            rechts über die Registergrenze
-F9E   ; AD           SHR     T
-D6F   ; AE           BRC     Ende             rechte Hälfte: Rand
-11F   ; AF           MOVI    #1,MASKE
-51D   ; B0           ADDI    #1,IDX
+71D   ; AC  SLX      SUBI    #1,IDX           links über die Registergrenze
+0DE   ; AD           MOV     IDX,T
+F9E   ; AE           SHR     T
+D75   ; AF           BRC     Ende             war linke Hälfte: Rand
+18F   ; B0           MOVI    #8,MASKE
 F07   ; B1           RET
 
-97D   ; B2  Zelle    CMPI    #7,IDX           schaltet Zelle IDX/MASKE um (XOR); T = alter Wert
-DB6   ; B3           BRC     ZoU
-F0D   ; B4           EXRL                     Fenster Zeile 1-4: R0-R7 = M0-M7
-CB9   ; B5           GOTO    ZSel
+0DE   ; B2  SRX      MOV     IDX,T            rechts über die Registergrenze
+F9E   ; B3           SHR     T
+D75   ; B4           BRC     Ende             rechte Hälfte: Rand
+11F   ; B5           MOVI    #1,MASKE
+51D   ; B6           ADDI    #1,IDX
+F07   ; B7           RET
 
-F0F   ; B6  ZoU      EXRA                     Fenster Zeile 5-8: R0-R7 = M8-MF
-F0E   ; B7           EXRM
-F0F   ; B8           EXRA
+97D   ; B8  Zelle    CMPI    #7,IDX           schaltet Zelle IDX/MASKE um (XOR); T = alter Wert
+DBC   ; B9           BRC     ZoU
+F0D   ; BA           EXRL                     Fenster Zeile 1-4: R0-R7 = M0-M7
+CBF   ; BB           GOTO    ZSel
 
-0DE   ; B9  ZSel     MOV     IDX,T
-37E   ; BA           ANDI    #7,T
-93E   ; BB           CMPI    #3,T             Halbierung über R0-R7
-DD6   ; BC           BRC     Z47
-91E   ; BD           CMPI    #1,T
-DCA   ; BE           BRC     Z23
-EC5   ; BF           BRZ     Z1
+F0F   ; BC  ZoU      EXRA                     Fenster Zeile 5-8: R0-R7 = M8-MF
+F0E   ; BD           EXRM
+F0F   ; BE           EXRA
 
-00E   ; C0  Z0       MOV     r0,T             T = Zelle
-2FE   ; C1           AND     MASKE,T
-AF0   ; C2           OR      MASKE,r0         XOR = (a oder m) - (a und m)
-6E0   ; C3           SUB     T,r0
-CEE   ; C4           GOTO    ZZu
+0DE   ; BF  ZSel     MOV     IDX,T
+37E   ; C0           ANDI    #7,T
+93E   ; C1           CMPI    #3,T             Halbierung über R0-R7
+DDC   ; C2           BRC     Z47
+91E   ; C3           CMPI    #1,T
+DD0   ; C4           BRC     Z23
+ECB   ; C5           BRZ     Z1
 
-01E   ; C5  Z1       MOV     r1,T             T = Zelle
-2FE   ; C6           AND     MASKE,T
-AF1   ; C7           OR      MASKE,r1         XOR = (a oder m) - (a und m)
-6E1   ; C8           SUB     T,r1
-CEE   ; C9           GOTO    ZZu
+00E   ; C6  Z0       MOV     r0,T             T = Zelle
+2FE   ; C7           AND     MASKE,T
+AF0   ; C8           OR      MASKE,r0         XOR = (a oder m) - (a und m)
+6E0   ; C9           SUB     T,r0
+CF4   ; CA           GOTO    ZZu
 
-92E   ; CA  Z23      CMPI    #2,T
-ED1   ; CB           BRZ     Z2
+01E   ; CB  Z1       MOV     r1,T             T = Zelle
+2FE   ; CC           AND     MASKE,T
+AF1   ; CD           OR      MASKE,r1         XOR = (a oder m) - (a und m)
+6E1   ; CE           SUB     T,r1
+CF4   ; CF           GOTO    ZZu
 
-03E   ; CC  Z3       MOV     r3,T             T = Zelle
-2FE   ; CD           AND     MASKE,T
-AF3   ; CE           OR      MASKE,r3         XOR = (a oder m) - (a und m)
-6E3   ; CF           SUB     T,r3
-CEE   ; D0           GOTO    ZZu
+92E   ; D0  Z23      CMPI    #2,T
+ED7   ; D1           BRZ     Z2
 
-02E   ; D1  Z2       MOV     r2,T             T = Zelle
-2FE   ; D2           AND     MASKE,T
-AF2   ; D3           OR      MASKE,r2         XOR = (a oder m) - (a und m)
-6E2   ; D4           SUB     T,r2
-CEE   ; D5           GOTO    ZZu
+03E   ; D2  Z3       MOV     r3,T             T = Zelle
+2FE   ; D3           AND     MASKE,T
+AF3   ; D4           OR      MASKE,r3         XOR = (a oder m) - (a und m)
+6E3   ; D5           SUB     T,r3
+CF4   ; D6           GOTO    ZZu
 
-95E   ; D6  Z47      CMPI    #5,T
-DE3   ; D7           BRC     Z67
-EDE   ; D8           BRZ     Z5
+02E   ; D7  Z2       MOV     r2,T             T = Zelle
+2FE   ; D8           AND     MASKE,T
+AF2   ; D9           OR      MASKE,r2         XOR = (a oder m) - (a und m)
+6E2   ; DA           SUB     T,r2
+CF4   ; DB           GOTO    ZZu
 
-04E   ; D9  Z4       MOV     r4,T             T = Zelle
-2FE   ; DA           AND     MASKE,T
-AF4   ; DB           OR      MASKE,r4         XOR = (a oder m) - (a und m)
-6E4   ; DC           SUB     T,r4
-CEE   ; DD           GOTO    ZZu
+95E   ; DC  Z47      CMPI    #5,T
+DE9   ; DD           BRC     Z67
+EE4   ; DE           BRZ     Z5
 
-05E   ; DE  Z5       MOV     r5,T             T = Zelle
-2FE   ; DF           AND     MASKE,T
-AF5   ; E0           OR      MASKE,r5         XOR = (a oder m) - (a und m)
-6E5   ; E1           SUB     T,r5
-CEE   ; E2           GOTO    ZZu
+04E   ; DF  Z4       MOV     r4,T             T = Zelle
+2FE   ; E0           AND     MASKE,T
+AF4   ; E1           OR      MASKE,r4         XOR = (a oder m) - (a und m)
+6E4   ; E2           SUB     T,r4
+CF4   ; E3           GOTO    ZZu
 
-96E   ; E3  Z67      CMPI    #6,T
-EEA   ; E4           BRZ     Z6
+05E   ; E4  Z5       MOV     r5,T             T = Zelle
+2FE   ; E5           AND     MASKE,T
+AF5   ; E6           OR      MASKE,r5         XOR = (a oder m) - (a und m)
+6E5   ; E7           SUB     T,r5
+CF4   ; E8           GOTO    ZZu
 
-07E   ; E5  Z7       MOV     r7,T             T = Zelle
-2FE   ; E6           AND     MASKE,T
-AF7   ; E7           OR      MASKE,r7         XOR = (a oder m) - (a und m)
-6E7   ; E8           SUB     T,r7
-CEE   ; E9           GOTO    ZZu
+96E   ; E9  Z67      CMPI    #6,T
+EF0   ; EA           BRZ     Z6
 
-06E   ; EA  Z6       MOV     r6,T             T = Zelle
-2FE   ; EB           AND     MASKE,T
-AF6   ; EC           OR      MASKE,r6         XOR = (a oder m) - (a und m)
-6E6   ; ED           SUB     T,r6
+07E   ; EB  Z7       MOV     r7,T             T = Zelle
+2FE   ; EC           AND     MASKE,T
+AF7   ; ED           OR      MASKE,r7         XOR = (a oder m) - (a und m)
+6E7   ; EE           SUB     T,r7
+CF4   ; EF           GOTO    ZZu
 
-97D   ; EE  ZZu      CMPI    #7,IDX           Fenster zu
-DF2   ; EF           BRC     ZzU
-F0D   ; F0           EXRL
-CF5   ; F1           GOTO    ZRet
+06E   ; F0  Z6       MOV     r6,T             T = Zelle
+2FE   ; F1           AND     MASKE,T
+AF6   ; F2           OR      MASKE,r6         XOR = (a oder m) - (a und m)
+6E6   ; F3           SUB     T,r6
 
-F0F   ; F2  ZzU      EXRA
-F0E   ; F3           EXRM
-F0F   ; F4           EXRA
+97D   ; F4  ZZu      CMPI    #7,IDX           Fenster zu
+DF8   ; F5           BRC     ZzU
+F0D   ; F6           EXRL
+CFB   ; F7           GOTO    ZRet
 
-0EE   ; F5  ZRet     MOV     T,T              Zero-Flag = Zelle war frei
-F07   ; F6           RET
+F0F   ; F8  ZzU      EXRA
+F0E   ; F9           EXRM
+F0F   ; FA           EXRA
 
-FDF   ; F7  Schlaf   DIN     MASKE            Matrix schlafen legen: auf REQ (Eingang 1) warten ...
-31F   ; F8           ANDI    #1,MASKE
-EF7   ; F9           BRZ     Schlaf
-1FF   ; FA  Tog      MOVI    #F,MASKE         ... ACK 15 (schlafen); Einsprung Tog: F weckt die Matrix
-FEF   ; FB           DOT     MASKE
-10F   ; FC           MOVI    #0,MASKE         Ausgaenge 0: nach dem Schlafen kann F wieder wecken,
-FEF   ; FD           DOT     MASKE            nach dem Wecken gilt das naechste ACK
-F07   ; FE           RET
+0EE   ; FB  ZRet     MOV     T,T              Zero-Flag = Zelle war frei
+F07   ; FC           RET
