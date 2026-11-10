@@ -2,8 +2,8 @@
 
 Snake für den Busch Microtronic 2090 mit 8x8-LED-Matrix und 4 Tastern.
 
-- 253 Programmschritte, 3 frei
-- Datei: [snake.mic](snake.mic) (Version 05)
+- 246 Programmschritte, 10 frei
+- Datei: [snake.mic](snake.mic) (Version 06)
 
 ## Spiel
 
@@ -36,14 +36,12 @@ Aus dem Bild allein lässt sich der Weg des Schwanzes nicht bestimmen. Deshalb s
 
 ## Matrixprotokoll
 
-Das Programm arbeitet mit dem [ESP2090 Studio](https://github.com/rab-berlin/ESP2090) (Blockmodus mit Schlafmodus):
+Das Programm arbeitet mit dem [ESP2090 Studio](https://github.com/rab-berlin/ESP2090) im Blockmodus, die Matrix schläft zwischen den Bildern:
 
-- **Schlafen:** Zwischen den Bildern schläft die Matrix (ACK 15). Der ESP setzt dann kein REQ und ignoriert die Ausgänge, so ist Eingang 1 frei für Taster links.
-- **Wecken und Bild:** Für ein Bild legt das Programm F an und hält es, bis der ESP mit REQ antwortet. Dann sendet es direkt ACK 1, genau einen Befehl und die 16 Register. So geht kein Wecken verloren, egal wie spät der ESP nachsieht (z. B. bei offener Weboberfläche).
-- **Wieder schlafen:** Danach setzt das Programm die Ausgänge auf 0 und legt die Matrix wieder schlafen (ACK 15, nach zwei Schritten eine 0).
+1. **Wecken:** Das Programm legt F an und hält es, bis der ESP mit REQ antwortet.
+2. **Bild:** Dann sendet es direkt ACK 1, genau einen Befehl, die 16 Register und zum Schluss 0.
+3. **Schlafen:** Danach schläft der ESP von selbst wieder ein. Er setzt kein REQ und beachtet die Ausgänge nicht, so ist Eingang 1 frei für Taster links.
 
-Auf der Weboberfläche „LED on“ drücken, im [Emulator2090](https://github.com/rab-berlin/Emulator2090) die Matrix mit `m` einschalten (Modus ESP). Die Matrix muss vor dem Start eingeschaltet sein.
+Weil das F stehen bleibt, bis der ESP antwortet, geht kein Wecken verloren, auch wenn er gerade mit der Weboberfläche beschäftigt ist.
 
-Bis Version 02 lief das Programm mit dem früheren Blockprotokoll (Startnibble 1, Endnibble 0, Umschaltsignal F).
-
-Das Programm braucht die Firmware des ESP2090 Studios mit dem Weck-Handshake (gehaltenes F).
+Auf der Weboberfläche „LED on“ drücken, im [Emulator2090](https://github.com/rab-berlin/Emulator2090) die Matrix mit `m` einschalten (Modus ESP). Das Programm braucht die Firmware mit „ein Befehl je Wecken“ (esp2090-firmware ab PR #38).
