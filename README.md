@@ -3,7 +3,7 @@
 Snake für den Busch Microtronic 2090 mit 8x8-LED-Matrix und 4 Tastern.
 
 - 246 Programmschritte, 10 frei
-- Datei: [snake.mic](snake.mic) (Version 06)
+- Datei: [snake.mic](snake.mic)
 
 ## Spiel
 
@@ -59,7 +59,7 @@ Das Programm arbeitet mit dem [ESP2090 Studio](https://github.com/rab-berlin/ESP
 
 Weil das F stehen bleibt, bis der ESP antwortet, geht kein Wecken verloren, auch wenn er gerade mit der Weboberfläche beschäftigt ist.
 
-Auf der Weboberfläche „LED on“ drücken, im [Emulator2090](https://github.com/rab-berlin/Emulator2090) die Matrix mit `m` einschalten (Modus ESP). Das Programm braucht die Firmware mit „ein Befehl je Wecken“ (esp2090-firmware ab PR #38).
+Auf der Weboberfläche „LED on“ drücken, im [Emulator2090](https://github.com/rab-berlin/Emulator2090) die Matrix mit `m` einschalten (Modus ESP).
 
 ## Geschichte
 
