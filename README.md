@@ -61,6 +61,15 @@ Weil das F stehen bleibt, bis der ESP antwortet, geht kein Wecken verloren, auch
 
 Auf der Weboberfläche „LED on“ drücken, im [Emulator2090](https://github.com/rab-berlin/Emulator2090) die Matrix mit `m` einschalten (Modus ESP). Das Programm braucht die Firmware mit „ein Befehl je Wecken“ (esp2090-firmware ab PR #38).
 
+## Geschichte
+
+- **1976:** *Blockade* von Gremlin Industries (San Diego) ist das früheste bekannte Spiel dieser Art. Zwei Spieler ziehen jeder eine wachsende Linie hinter sich her und dürfen weder Wand noch eine Linie berühren. Im selben Jahr erschien *Bigfoot Bonkers* von Meadows Games, 1977 *The Surround* für das Atari VCS (Allan Miller).
+- **1982:** *Snake Byte* von Chuck Sommerville (Sirius Software) kennt zum ersten Mal Futter: Die Schlange wächst, wenn sie Äpfel frisst. Das ist die Form, die wir heute meinen und die auch dieses Programm spielt.
+- **1997:** Der Nokia-Entwickler **Taneli Armanto** schrieb *Snake* für das Nokia 6110. 2000 folgte *Snake II* auf dem Nokia 3310. Für viele wurde es das erste Spiel auf dem Handy.
+- Es gibt Dutzende Varianten und kein Urheberrecht auf die Idee. Dieses Programm folgt dem Prinzip von *Snake Byte*: Futter fressen, wachsen, nicht in sich selbst laufen.
+
+Quellen: snakegame.net „About Snake“ (Angaben dort nicht gegengeprüft).
+
 ## Wie es gemacht ist
 
 Der 2090 rechnet nur mit ganzen Zahlen von 0 bis 15, kennt keine indirekte Adressierung und hat keinen XOR-Befehl. Ein paar Kniffe, mit denen Snake in 246 Schritte passt:
